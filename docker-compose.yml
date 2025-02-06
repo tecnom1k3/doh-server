@@ -4,19 +4,44 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: doh-proxy
-    ports: 
-      - "3000:3000"
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     env_file:
       - .env
-
-    dnsdist:
+    networks:
+      - doh-network
+    labels:
+      - "traefik.http.routers.doh-proxy.rule=Host(`${DOH_HOSTNAME}`)"
+      - "traefik.http.routers.doh-proxy.tls.certresolver=myresolver"
+      - "traefik.http.services.doh-proxy.loadbalancer.server.port=3000"
+  dnsdist:
     image: powerdns/dnsdist-19:latest
+    container_name: dnsdist
     volumes:
       - ./dnsdist.conf:/etc/dnsdist/dnsdist.conf:ro
+    networks:
+      - doh-network
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
     ports:
-      - "8085:53/udp"
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"  # Redirect HTTP to HTTPS
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"  # Use HTTPS
+      - "--certificatesresolvers.myresolver.tailscale=true"
+      - "--accesslog=true"
+    networks:
+      - doh-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+
+networks:
+  doh-network:
+    driver: bridge
