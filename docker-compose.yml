@@ -9,6 +9,7 @@ services:
     networks:
       - doh-network
     labels:
+      - "traefik.enable=true"  # Explicitly enable Traefik for this container
       - "traefik.http.routers.doh-proxy.rule=Host(`${DOH_HOSTNAME}`)"
       - "traefik.http.routers.doh-proxy.tls.certresolver=myresolver"
       - "traefik.http.services.doh-proxy.loadbalancer.server.port=3000"
@@ -29,6 +30,7 @@ services:
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"  # Only expose containers with 'traefik.enable=true'
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.websecure.http.tls=true"
